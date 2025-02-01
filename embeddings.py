@@ -3,7 +3,6 @@ from langchain_groq import ChatGroq
 from db import get_user_groq_api_key
 from langchain_nomic import NomicEmbeddings
 
-embeddings = 
 def create_embeddings():
     # OPENAI_API_KEY = "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"
     return NomicEmbeddings(
