@@ -553,6 +553,48 @@
         .update-btn:hover {
             background: #0d8a6a;
         }
+
+
+
+        .prompt-adjust-btn {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #565869;
+            border-radius: 8px;
+            background: transparent;
+            color: #fff;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.3s ease;
+            margin-top: 8px;
+        }
+        
+        .prompt-adjust-btn:hover {
+            background: #343541;
+        }
+        
+        .prompt-input {
+            width: 100%;
+            min-height: 200px;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 14px;
+            line-height: 1.5;
+            resize: vertical;
+            margin-bottom: 12px;
+        }
+        
+        .prompt-input:focus {
+            outline: none;
+            border-color: #10a37f;
+            box-shadow: 0 0 0 2px rgba(16, 163, 127, 0.2);
+        }
+
+
     </style>
 </head>
 <body>
@@ -626,7 +668,7 @@
     <div id="settingsModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Settings</h2>
+                <h2>Settings2</h2>
                 <button class="close-modal">&times;</button>
             </div>
             <div class="modal-body">
@@ -643,6 +685,37 @@
             </div>
         </div>
     </div>
+
+
+
+
+
+   
+    
+    <!-- Add this modal after the settings modal -->
+    <div id="promptModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Adjust Teaching Prompt</h2>
+                <button class="close-modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="prompt-group">
+                    <label for="promptInput">Teaching Prompt:</label>
+                    <textarea 
+                        id="promptInput" 
+                        class="prompt-input" 
+                        rows="10" 
+                        placeholder="Enter your teaching prompt here..."
+                    ></textarea>
+                    <button id="updatePrompt" class="update-btn">Update Prompt</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    
+
 
 
     <script>
@@ -749,6 +822,13 @@ function initializeSidebar() {
                 <i class="fas fa-cog"></i>
                 Settings
             </button>
+
+                <button id="promptAdjustBtn" class="prompt-adjust-btn">
+                <i class="fas fa-sliders"></i>
+                Adjust Prompt
+            </button>
+
+            
             <button id="logoutBtn" class="logout-btn" onclick="logout()">
                 <i class="fas fa-sign-out-alt"></i>
                 Logout
@@ -757,7 +837,66 @@ function initializeSidebar() {
         <div id="conversationList"></div>
     `;
 }
+function initializePromptModal() {
+    const promptBtn = document.getElementById('promptAdjustBtn');
+    const promptModal = document.getElementById('promptModal');
+    const closePromptBtn = promptModal.querySelector('.close-modal');
+    const updatePromptBtn = document.getElementById('updatePrompt');
+    const promptInput = document.getElementById('promptInput');
 
+    // Load current prompt when opening modal
+    promptBtn.addEventListener('click', async () => {
+        promptModal.style.display = 'block';
+        try {
+            const response = await fetch('/get_prompt');
+            const data = await response.json();
+            promptInput.value = data.prompt;
+        } catch (error) {
+            console.error('Error loading prompt:', error);
+        }
+    });
+
+    // Close modal
+    closePromptBtn.addEventListener('click', () => promptModal.style.display = 'none');
+    window.addEventListener('click', (event) => {
+        if (event.target === promptModal) promptModal.style.display = 'none';
+    });
+
+    // Update prompt
+    updatePromptBtn.addEventListener('click', async () => {
+        const newPrompt = promptInput.value.trim();
+        if (!newPrompt) {
+            alert('Please enter a prompt');
+            return;
+        }
+
+        try {
+            const response = await fetch('/update_prompt', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ prompt: newPrompt })
+            });
+            const data = await response.json();
+            
+            if (data.success) {
+                alert('Prompt updated successfully');
+                promptModal.style.display = 'none';
+            } else {
+                alert(data.error || 'Failed to update prompt');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Error updating prompt');
+        }
+    });
+}
+
+// Call this in your document ready function
+document.addEventListener('DOMContentLoaded', () => {
+    initializePromptModal();
+});
 function setupEventListeners() {
     const messageInput = document.getElementById('messageInput');
     messageInput.addEventListener('keydown', function(e) {

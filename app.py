@@ -29,6 +29,7 @@ from models import embeddings, get_chat_model
 from io import BytesIO
 import tempfile
 from langchain.docstore.document import Document
+from chains import SYSTEM_PROMPT  # Since it's already defined in chains.py
 
 # Set up Flask app
 app = Flask(__name__)
@@ -91,12 +92,90 @@ def initialize_database():
         )
     ''')
     
+    # Create user_prompts table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS user_prompts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            prompt TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+    ''')
+    
     conn.commit()
     conn.close()
+
 # Initialize the database
 initialize_database()
+# Add these new routes to app.py
+@app.route('/get_prompt', methods=['GET'])
+def get_prompt():
+    if 'user_id' not in session:
+        return jsonify({'error': 'User not logged in'}), 401
 
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    # Get user's custom prompt or return default
+    prompt = cursor.execute('''
+        SELECT prompt FROM user_prompts 
+        WHERE user_id = ? 
+        ORDER BY updated_at DESC LIMIT 1
+    ''', (session['user_id'],)).fetchone()
+    
+    conn.close()
+    
+    if prompt:
+        return jsonify({'prompt': prompt['prompt']})
+    else:
+        # Return default prompt
+        return jsonify({'prompt': SYSTEM_PROMPT})
 
+@app.route('/update_prompt', methods=['POST'])
+def update_prompt():
+    if 'user_id' not in session:
+        return jsonify({'error': 'User not logged in'}), 401
+        
+    try:
+        data = request.json
+        new_prompt = data.get('prompt')
+        
+        if not new_prompt:
+            return jsonify({'error': 'Prompt is required'}), 400
+            
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Insert new prompt for the user
+        cursor.execute('''
+            INSERT INTO user_prompts (user_id, prompt)
+            VALUES (?, ?)
+        ''', (session['user_id'], new_prompt))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'message': 'Prompt updated successfully'})
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Modify the chat route to use custom prompt
+def get_user_prompt(user_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    prompt = cursor.execute('''
+        SELECT prompt FROM user_prompts 
+        WHERE user_id = ? 
+        ORDER BY updated_at DESC LIMIT 1
+    ''', (user_id,)).fetchone()
+    
+    conn.close()
+    
+    return prompt['prompt'] if prompt else SYSTEM_PROMPT
 # In app.py, add this at the top
 vectorstore = None
 # User registration
@@ -419,8 +498,16 @@ def chat():
 
         try:
             # Get chat model and create chain
+
+            system_prompt = get_user_prompt(user_id)
+        
+            # Update chain creation to use custom prompt
             chat_model = get_chat_model(user_id)
-            chain = create_conversational_chain(user_id, vectorstore)
+            chain = create_conversational_chain(user_id, vectorstore, system_prompt)
+
+
+            # chat_model = get_chat_model(user_id)
+            # chain = create_conversational_chain(user_id, vectorstore)
 
             # Get chat history
             cursor.execute('''

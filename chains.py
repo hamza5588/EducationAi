@@ -98,13 +98,59 @@ Your teaching approach follows these specific steps:
 Always maintain patience, provide encouragement, and ensure complete understanding 
 before moving to more complex topics. Match questions to appropriate grade levels."""
 
-def create_conversational_chain(user_id, vectorstore=None):
-    """Create a conversation chain with the provided user_id."""
-    chat_model = get_chat_model(user_id)  # Get chat model for specific user
+# def create_conversational_chain(user_id, vectorstore=None):
+#     """Create a conversation chain with the provided user_id."""
+#     chat_model = get_chat_model(user_id)  # Get chat model for specific user
+    
+#     if vectorstore is None:
+#         prompt = ChatPromptTemplate.from_messages([
+#             ("system", SYSTEM_PROMPT),
+#             MessagesPlaceholder(variable_name="chat_history"),
+#             ("human", "{input}"),
+#         ])
+        
+#         chain = prompt | chat_model
+        
+#         return RunnablePassthrough.assign(
+#             answer=chain,
+#             chat_history=lambda x: x.get("chat_history", [])
+#         )
+    
+#     # Create RAG chain if vectorstore exists
+#     rag_prompt = ChatPromptTemplate.from_template(
+#         """Answer questions following these teaching principles and steps while incorporating the context:
+#         1. Introduce yourself as Mr. Potter
+#         2. Ask for and remember student names
+#         3. Provide patient, step-by-step guidance
+#         4. Break down complex problems into simpler ones
+#         5. Check understanding and adjust difficulty accordingly
+        
+#         <context>
+#         {context}
+#         </context>
+        
+#         Question: {input}"""
+#     )
+    
+#     document_chain = create_stuff_documents_chain(chat_model, rag_prompt)
+#     retriever = vectorstore.as_retriever()
+
+#     return create_retrieval_chain(
+#         retriever, 
+#         document_chain
+#     )
+
+
+def create_conversational_chain(user_id, vectorstore=None, custom_prompt=None):
+    """Create a conversation chain with the provided user_id and optional custom prompt."""
+    chat_model = get_chat_model(user_id)
+    
+    # Use custom prompt if provided, otherwise use default SYSTEM_PROMPT
+    system_prompt = custom_prompt if custom_prompt else SYSTEM_PROMPT
     
     if vectorstore is None:
         prompt = ChatPromptTemplate.from_messages([
-            ("system", SYSTEM_PROMPT),
+            ("system", system_prompt),
             MessagesPlaceholder(variable_name="chat_history"),
             ("human", "{input}"),
         ])
@@ -118,18 +164,14 @@ def create_conversational_chain(user_id, vectorstore=None):
     
     # Create RAG chain if vectorstore exists
     rag_prompt = ChatPromptTemplate.from_template(
-        """Answer questions following these teaching principles and steps while incorporating the context:
-        1. Introduce yourself as Mr. Potter
-        2. Ask for and remember student names
-        3. Provide patient, step-by-step guidance
-        4. Break down complex problems into simpler ones
-        5. Check understanding and adjust difficulty accordingly
+        f"""Answer questions following these teaching principles and steps while incorporating the context:
+        {system_prompt}
         
         <context>
-        {context}
+        {{context}}
         </context>
         
-        Question: {input}"""
+        Question: {{input}}"""
     )
     
     document_chain = create_stuff_documents_chain(chat_model, rag_prompt)
