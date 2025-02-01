@@ -2,8 +2,6 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_groq import ChatGroq
 from db import get_user_groq_api_key
 from langchain_nomic import NomicEmbeddings
-
-
 def create_embeddings():
     apikey = "nk-cKoV2oTQZO0sOH90NzNn5FXxqPULCO04srGOI9sXo5M"
     return embeddings = NomicEmbeddings(
