@@ -1,3 +1,4 @@
+from io import BytesIO
 from venv import logger
 from flask import Flask, request, jsonify, render_template, redirect, url_for, session
 from werkzeug.utils import secure_filename
@@ -25,7 +26,9 @@ from db import get_db_connection
 from chains import create_conversational_chain
 from models import embeddings, get_chat_model
 
-
+from io import BytesIO
+import tempfile
+from langchain.docstore.document import Document
 
 # Set up Flask app
 app = Flask(__name__)
@@ -236,7 +239,6 @@ def logout():
     session.clear()
     return redirect(url_for('login'))
 
-
 @app.route('/upload', methods=['POST'])
 def upload_file():
     global vectorstore
@@ -250,30 +252,79 @@ def upload_file():
         
         for file in files:
             if file and allowed_file(file.filename):
-                filename = secure_filename(file.filename)
-                temp_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-                file.save(temp_path)
-                
+                logger.info(f"Processing file: {file.filename}")
                 try:
-                    chunks = process_file(temp_path)
+                    # Convert file to BytesIO for in-memory processing
+                    file_content = file.read()
+                    file_stream = BytesIO(file_content)
+                    file_stream.name = file.filename  # Important: set name for extension checking
+                    
+                    # Process the file
+                    chunks = process_file(file_stream)
                     all_chunks.extend(chunks)
-                finally:
-                    if os.path.exists(temp_path):
-                        os.remove(temp_path)
+                    logger.info(f"Successfully processed {file.filename}")
+                    
+                except Exception as e:
+                    logger.error(f"Error processing file {file.filename}: {str(e)}")
+                    continue
         
         if not all_chunks:
             return jsonify({'error': 'No valid content was found in the uploaded files'}), 400
         
-        if vectorstore is None:
-            vectorstore = FAISS.from_documents(all_chunks, embeddings)
-        else:
-            vectorstore.add_documents(all_chunks)
+        try:
+            if vectorstore is None:
+                vectorstore = FAISS.from_documents(all_chunks, embeddings)
+                logger.info("Created new vectorstore")
+            else:
+                vectorstore.add_documents(all_chunks)
+                logger.info("Added documents to existing vectorstore")
+                
+            return jsonify({'message': 'Files processed successfully'})
             
-        return jsonify({'message': 'Files processed successfully'})
-        
+        except Exception as e:
+            logger.error(f"Error with vectorstore: {str(e)}")
+            return jsonify({'error': 'Error processing document for chat context'}), 500
+            
     except Exception as e:
         logger.error(f"Error in upload: {str(e)}")
         return jsonify({'error': str(e)}), 500
+# @app.route('/upload', methods=['POST'])
+# def upload_file():
+#     global vectorstore
+    
+#     try:
+#         if 'files' not in request.files:
+#             return jsonify({'error': 'No files provided'}), 400
+            
+#         files = request.files.getlist('files')
+#         all_chunks = []
+        
+#         for file in files:
+#             if file and allowed_file(file.filename):
+#                 filename = secure_filename(file.filename)
+#                 temp_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+#                 file.save(temp_path)
+                
+#                 try:
+#                     chunks = process_file(temp_path)
+#                     all_chunks.extend(chunks)
+#                 finally:
+#                     if os.path.exists(temp_path):
+#                         os.remove(temp_path)
+        
+#         if not all_chunks:
+#             return jsonify({'error': 'No valid content was found in the uploaded files'}), 400
+        
+#         if vectorstore is None:
+#             vectorstore = FAISS.from_documents(all_chunks, embeddings)
+#         else:
+#             vectorstore.add_documents(all_chunks)
+            
+#         return jsonify({'message': 'Files processed successfully'})
+        
+#     except Exception as e:
+#         logger.error(f"Error in upload: {str(e)}")
+#         return jsonify({'error': str(e)}), 500
 
 
 # Add this route to your Flask application
