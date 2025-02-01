@@ -2,13 +2,12 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_groq import ChatGroq
 from db import get_user_groq_api_key
 from langchain_nomic import NomicEmbeddings
-
-embeddings = 
+ 
 def create_embeddings():
     # OPENAI_API_KEY = "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"
     return NomicEmbeddings(
     model="nomic-embed-text-v1.5",
-    api_key="nk-W3huYcOUS_-GztrGv509-7MxCl8u1GIBRy8hZASQuX0"
+    api_key="nk-cKoV2oTQZO0sOH90NzNn5FXxqPULCO04srGOI9sXo5M"
   
 )
 
