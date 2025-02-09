@@ -203,26 +203,93 @@ def register():
         finally:
             conn.close()
     return render_template('register.html')
+from flask import Flask, session
+from datetime import timedelta
+import sqlite3
 
-# User login
+app.permanent_session_lifetime = timedelta(days=30)  # Extend session lifetime
+
+def get_db_connection():
+    conn = sqlite3.connect('chat.db', timeout=20)  # Add timeout to prevent database locked errors
+    conn.row_factory = sqlite3.Row
+    return conn
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    error = None
     if request.method == 'POST':
         useremail = request.form['useremail']
         password = request.form['password']
 
-        conn = get_db_connection()
-        user = conn.execute('SELECT * FROM users WHERE useremail = ? AND password = ?', (useremail, password)).fetchone()
-        conn.close()
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            # Update last_login timestamp when user logs in
+            user = cursor.execute('''
+                SELECT * FROM users 
+                WHERE useremail = ? AND password = ?
+            ''', (useremail, password)).fetchone()
+            
+            if user:
+                # Update last login time
+                cursor.execute('''
+                    UPDATE users 
+                    SET last_login = CURRENT_TIMESTAMP 
+                    WHERE id = ?
+                ''', (user['id'],))
+                
+                # Make session permanent
+                session.permanent = True
+                
+                # Store user data in session
+                session['user_id'] = user['id']
+                session['username'] = user['username']
+                session['groq_api_key'] = user['groq_api_key']
+                
+                conn.commit()
+                conn.close()
+                return redirect(url_for('index'))
+            else:
+                error = "Incorrect email or password."
+                
+        except sqlite3.Error as e:
+            error = f"Database error: {str(e)}"
+            if 'conn' in locals():
+                conn.close()
+        except Exception as e:
+            error = f"An error occurred: {str(e)}"
+            if 'conn' in locals():
+                conn.close()
 
-        if user:
-            session['user_id'] = user['id']
-            session['username'] = user['username']
-            session['groq_api_key'] = user['groq_api_key'] 
-            return redirect(url_for('index'))
-        else:
-            return "Invalid email or password!"
-    return render_template('login.html')
+    return render_template('login.html', error=error)
+
+@app.route('/check_session')
+def check_session():
+    if 'user_id' in session:
+        return jsonify({'logged_in': True, 'username': session.get('username')})
+    return jsonify({'logged_in': False}), 401
+# # User login
+# @app.route('/login', methods=['GET', 'POST'])
+# def login():
+#     error = None
+#     if request.method == 'POST':
+#         useremail = request.form['useremail']
+#         password = request.form['password']
+
+#         conn = get_db_connection()
+#         user = conn.execute('SELECT * FROM users WHERE useremail = ? AND password = ?', (useremail, password)).fetchone()
+#         conn.close()
+
+#         if user:
+#             session['user_id'] = user['id']
+#             session['username'] = user['username']
+#             session['groq_api_key'] = user['groq_api_key'] 
+#             return redirect(url_for('index'))
+#         else:
+#             error = "Incorrect username or password."
+
+#     return render_template('login.html', error=error)
 
 
 @app.route('/')
